@@ -2,6 +2,9 @@
 
 一个面向 Windows 10/11 的轻量级本地工具：为常用应用绑定全局快捷键，实现一键启动、置前、再次触发最小化。
 
+<img width="982" height="652" alt="image" src="https://github.com/user-attachments/assets/59d88741-f8d4-438d-99de-bd30a5b9c224" />
+
+
 ## 功能特性
 
 - 全局快捷键绑定（`RegisterHotKey`）
