@@ -6,6 +6,12 @@ namespace QuickHotkeyLauncher.Services;
 
 public sealed class InstalledAppCatalogService
 {
+    private sealed class ShortcutLaunchInfo
+    {
+        public string TargetPath { get; init; } = string.Empty;
+        public string Arguments { get; init; } = string.Empty;
+    }
+
     public List<AppCatalogItem> GetInstalledApps()
     {
         var results = new Dictionary<string, AppCatalogItem>(StringComparer.OrdinalIgnoreCase);
@@ -34,7 +40,13 @@ public sealed class InstalledAppCatalogService
 
             foreach (var linkFile in Directory.EnumerateFiles(dir, "*.lnk", SearchOption.AllDirectories))
             {
-                var target = ResolveShortcutTarget(linkFile);
+                var shortcut = ResolveShortcutTarget(linkFile);
+                if (shortcut is null)
+                {
+                    continue;
+                }
+
+                var target = shortcut.TargetPath;
                 if (string.IsNullOrWhiteSpace(target) || !target.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
@@ -51,6 +63,7 @@ public sealed class InstalledAppCatalogService
                     {
                         Name = Path.GetFileNameWithoutExtension(linkFile),
                         ExePath = target,
+                        LaunchArguments = shortcut.Arguments,
                         Source = L.T("Start Menu", "开始菜单")
                     };
                 }
@@ -149,29 +162,34 @@ public sealed class InstalledAppCatalogService
         return value.Trim().Trim('"');
     }
 
-    private static string ResolveShortcutTarget(string shortcutPath)
+    private static ShortcutLaunchInfo? ResolveShortcutTarget(string shortcutPath)
     {
         try
         {
             var shellType = Type.GetTypeFromProgID("WScript.Shell");
             if (shellType is null)
             {
-                return string.Empty;
+                return null;
             }
 
             dynamic? shell = Activator.CreateInstance(shellType);
             if (shell is null)
             {
-                return string.Empty;
+                return null;
             }
 
             dynamic? shortcut = shell.CreateShortcut(shortcutPath);
-            string targetPath = shortcut.TargetPath;
-            return targetPath ?? string.Empty;
+            string targetPath = shortcut.TargetPath ?? string.Empty;
+            string arguments = shortcut.Arguments ?? string.Empty;
+            return new ShortcutLaunchInfo
+            {
+                TargetPath = targetPath,
+                Arguments = arguments
+            };
         }
         catch
         {
-            return string.Empty;
+            return null;
         }
     }
 }
