@@ -16,6 +16,7 @@ public sealed class AddAppForm : Form
     private readonly Label _hotkeyLabel;
     private readonly List<AppCatalogItem> _allApps;
     private HotkeyDefinition? _hotkey;
+    private AppCatalogItem? _selectedInstalledItem;
 
     public AppBinding? Result { get; private set; }
 
@@ -195,6 +196,7 @@ public sealed class AddAppForm : Form
         {
             if (_appListBox.SelectedItem is AppCatalogItem item)
             {
+                _selectedInstalledItem = item;
                 _appNameTextBox.Text = item.Name;
                 _pathTextBox.Text = item.ExePath;
             }
@@ -304,6 +306,11 @@ public sealed class AddAppForm : Form
         {
             AppName = appName,
             ExePath = path,
+            LaunchArguments = _installedRadio.Checked &&
+                              _selectedInstalledItem is not null &&
+                              string.Equals(_selectedInstalledItem.ExePath, path, StringComparison.OrdinalIgnoreCase)
+                ? _selectedInstalledItem.LaunchArguments
+                : string.Empty,
             Hotkey = _hotkey,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow

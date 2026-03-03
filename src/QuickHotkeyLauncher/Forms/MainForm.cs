@@ -247,7 +247,7 @@ public sealed class MainForm : Form
                     {
                         try
                         {
-                            _launchFocusService.LaunchOrFocus(binding.ExePath, binding.AppName);
+                            _launchFocusService.LaunchOrFocus(binding.ExePath, binding.AppName, binding.LaunchArguments);
                         }
                         catch
                         {
