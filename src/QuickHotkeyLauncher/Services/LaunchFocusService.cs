@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace QuickHotkeyLauncher.Services;
 
@@ -10,19 +11,21 @@ public sealed class LaunchFocusService
         "QuickHotkeyLauncher",
         "diagnostic.log");
 
-    public void LaunchOrFocus(string exePath, string? appName = null)
+    public void LaunchOrFocus(string exePath, string? appName = null, string? launchArguments = null)
     {
         var exeName = Path.GetFileNameWithoutExtension(exePath);
-        Log($"trigger exePath='{exePath}', appName='{appName ?? string.Empty}'");
+        var effectiveLaunchArguments = ResolveLaunchArguments(exePath, appName, launchArguments);
+        var processStartName = ExtractProcessStartName(effectiveLaunchArguments);
+        Log($"trigger exePath='{exePath}', appName='{appName ?? string.Empty}', args='{effectiveLaunchArguments}'");
 
-        if (TryGetForegroundWindowForApp(exePath, exeName, appName, out var foregroundWindow, out var foregroundReason))
+        if (TryGetForegroundWindowForApp(exePath, exeName, processStartName, appName, out var foregroundWindow, out var foregroundReason))
         {
             Log($"action=minimize hwnd=0x{foregroundWindow.ToInt64():X}, reason={foregroundReason}");
             ForceMinimizeWindow(foregroundWindow);
             return;
         }
 
-        if (TryFindAppWindow(exePath, exeName, appName, out var appWindow, out var appReason))
+        if (TryFindAppWindow(exePath, exeName, processStartName, appName, out var appWindow, out var appReason))
         {
             Log($"action=focus hwnd=0x{appWindow.ToInt64():X}, reason={appReason}");
             RestoreAndBringToFront(appWindow);
@@ -30,7 +33,14 @@ public sealed class LaunchFocusService
         }
 
         Log("action=start_process");
-        Process.Start(exePath);
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = exePath,
+            UseShellExecute = true,
+            Arguments = effectiveLaunchArguments,
+            WorkingDirectory = Path.GetDirectoryName(exePath) ?? string.Empty
+        };
+        Process.Start(startInfo);
     }
 
     private static void RestoreAndBringToFront(IntPtr hWnd)
@@ -67,7 +77,7 @@ public sealed class LaunchFocusService
         }
     }
 
-    private static bool TryGetForegroundWindowForApp(string exePath, string exeName, string? appName, out IntPtr foregroundWindow, out string reason)
+    private static bool TryGetForegroundWindowForApp(string exePath, string exeName, string? processStartName, string? appName, out IntPtr foregroundWindow, out string reason)
     {
         reason = "none";
         foregroundWindow = NativeMethods.GetForegroundWindow();
@@ -83,10 +93,10 @@ public sealed class LaunchFocusService
             foregroundWindow = rootWindow;
         }
 
-        return IsWindowMatchTarget(foregroundWindow, exePath, exeName, appName, out reason);
+        return IsWindowMatchTarget(foregroundWindow, exePath, exeName, processStartName, appName, out reason);
     }
 
-    private static bool TryFindAppWindow(string exePath, string exeName, string? appName, out IntPtr window, out string reason)
+    private static bool TryFindAppWindow(string exePath, string exeName, string? processStartName, string? appName, out IntPtr window, out string reason)
     {
         IntPtr result = IntPtr.Zero;
         string foundReason = "none";
@@ -97,7 +107,7 @@ public sealed class LaunchFocusService
                 return true;
             }
 
-            if (IsWindowMatchTarget(hWnd, exePath, exeName, appName, out var currentReason))
+            if (IsWindowMatchTarget(hWnd, exePath, exeName, processStartName, appName, out var currentReason))
             {
                 result = hWnd;
                 foundReason = currentReason;
@@ -112,7 +122,7 @@ public sealed class LaunchFocusService
         return window != IntPtr.Zero;
     }
 
-    private static bool IsWindowMatchTarget(IntPtr hWnd, string exePath, string exeName, string? appName, out string reason)
+    private static bool IsWindowMatchTarget(IntPtr hWnd, string exePath, string exeName, string? processStartName, string? appName, out string reason)
     {
         reason = "none";
         NativeMethods.GetWindowThreadProcessId(hWnd, out var pid);
@@ -138,6 +148,13 @@ public sealed class LaunchFocusService
                 return true;
             }
 
+            if (!string.IsNullOrWhiteSpace(processStartName) &&
+                string.Equals(process.ProcessName, processStartName, StringComparison.OrdinalIgnoreCase))
+            {
+                reason = "process_start_name_match";
+                return true;
+            }
+
             if (IsHostProcessMatch(exeName, process.ProcessName))
             {
                 reason = "host_process_match";
@@ -149,13 +166,19 @@ public sealed class LaunchFocusService
                 reason = "same_directory_match";
                 return true;
             }
+
+            // When process metadata is available and does not match, avoid
+            // broad title-only matching that can produce false positives
+            // (e.g. browser tabs containing "Discord").
+            reason = "process_mismatch";
+            return false;
         }
         catch
         {
             // Ignore process inspection failures and fallback to title matching.
         }
 
-        if (MatchesWindowTitle(hWnd, appName, exeName))
+        if (MatchesWindowTitle(hWnd, appName, exeName, processStartName))
         {
             reason = "title_match";
             return true;
@@ -196,7 +219,7 @@ public sealed class LaunchFocusService
         NativeMethods.PostMessage(hWnd, NativeMethods.WmSysCommand, (IntPtr)NativeMethods.ScMinimize, IntPtr.Zero);
     }
 
-    private static bool MatchesWindowTitle(IntPtr hWnd, string? appName, string exeName)
+    private static bool MatchesWindowTitle(IntPtr hWnd, string? appName, string exeName, string? processStartName)
     {
         var title = GetWindowTitle(hWnd);
         if (string.IsNullOrWhiteSpace(title))
@@ -215,6 +238,12 @@ public sealed class LaunchFocusService
             return true;
         }
 
+        if (!string.IsNullOrWhiteSpace(processStartName) &&
+            title.Contains(processStartName, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
         // Console windows often use localized titles instead of process names.
         if ((exeName.Equals("powershell", StringComparison.OrdinalIgnoreCase) ||
              exeName.Equals("pwsh", StringComparison.OrdinalIgnoreCase)) &&
@@ -224,6 +253,56 @@ public sealed class LaunchFocusService
         }
 
         return false;
+    }
+
+    private static string? ExtractProcessStartName(string? launchArguments)
+    {
+        if (string.IsNullOrWhiteSpace(launchArguments))
+        {
+            return null;
+        }
+
+        var match = Regex.Match(
+            launchArguments,
+            "--processStart\\s+(\"(?<name>[^\"]+)\"|(?<name>\\S+))",
+            RegexOptions.IgnoreCase);
+
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        var value = match.Groups["name"].Value.Trim().Trim('"');
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return Path.GetFileNameWithoutExtension(value);
+    }
+
+    private static string ResolveLaunchArguments(string exePath, string? appName, string? launchArguments)
+    {
+        if (!string.IsNullOrWhiteSpace(launchArguments))
+        {
+            return launchArguments;
+        }
+
+        // Backward-compatible fallback for existing Discord bindings that only saved Update.exe.
+        if (Path.GetFileName(exePath).Equals("Update.exe", StringComparison.OrdinalIgnoreCase) &&
+            exePath.Contains(@"\Discord\", StringComparison.OrdinalIgnoreCase))
+        {
+            return "--processStart Discord.exe";
+        }
+
+        if (!string.IsNullOrWhiteSpace(appName) &&
+            appName.Contains("discord", StringComparison.OrdinalIgnoreCase) &&
+            Path.GetFileName(exePath).Equals("Update.exe", StringComparison.OrdinalIgnoreCase))
+        {
+            return "--processStart Discord.exe";
+        }
+
+        return string.Empty;
     }
 
     private static string GetWindowTitle(IntPtr hWnd)
