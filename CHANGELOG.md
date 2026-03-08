@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.3 - 2026-03-08
+
+- Redesign the app icon/logo with brighter, higher-contrast colors for better visibility and recognition.
+- Keep the refreshed branding applied across the executable, window, and tray surfaces.
 ## v1.0.2 - 2026-03-08
 
 - Refresh app branding with a custom icon/logo and wire it into the executable, window, and tray icon surfaces.
