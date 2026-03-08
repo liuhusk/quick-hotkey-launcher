@@ -1,4 +1,4 @@
-﻿using QuickHotkeyLauncher.Localization;
+using QuickHotkeyLauncher.Localization;
 using QuickHotkeyLauncher.Models;
 using QuickHotkeyLauncher.Services;
 using QuickHotkeyLauncher.UI;
@@ -48,7 +48,8 @@ public sealed class MainForm : Form
         _config = _configService.Load();
         L.SetMode(ParseLanguageMode(_config.LanguageMode));
 
-        Text = "QuickHotkeyLauncher";
+        Text = AppBranding.AppName;
+        Icon = AppBranding.CreateIcon();
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(900, 560);
         ClientSize = new Size(980, 620);
@@ -212,8 +213,8 @@ public sealed class MainForm : Form
 
         _trayIcon = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
-            Text = "QuickHotkeyLauncher",
+            Icon = AppBranding.CreateIcon(),
+            Text = AppBranding.AppName,
             Visible = true,
             ContextMenuStrip = _trayMenu
         };

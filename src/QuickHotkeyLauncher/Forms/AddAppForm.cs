@@ -23,6 +23,7 @@ public sealed class AddAppForm : Form
     public AddAppForm(List<AppCatalogItem> apps)
     {
         _allApps = apps;
+        Icon = AppBranding.CreateIcon();
         Text = L.T("Add Application", "添加应用");
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterParent;

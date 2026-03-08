@@ -1,6 +1,7 @@
 using System.Threading;
 using QuickHotkeyLauncher.Forms;
 using QuickHotkeyLauncher.Localization;
+using QuickHotkeyLauncher.UI;
 
 namespace QuickHotkeyLauncher;
 
@@ -14,7 +15,7 @@ internal static class Program
         {
             MessageBox.Show(
                 L.T("Application is already running.", "应用已在运行。"),
-                "QuickHotkeyLauncher",
+                AppBranding.AppName,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
             return;

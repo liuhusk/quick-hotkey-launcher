@@ -14,6 +14,7 @@ public sealed class HotkeyCaptureForm : Form
 
     public HotkeyCaptureForm(HotkeyDefinition? initial = null)
     {
+        Icon = AppBranding.CreateIcon();
         Text = L.T("Set Hotkey", "设置快捷键");
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterParent;

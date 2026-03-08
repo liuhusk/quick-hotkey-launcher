@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.2 - 2026-03-08
+
+- Refresh app branding with a custom icon/logo and wire it into the executable, window, and tray icon surfaces.
+- Keep release packaging aligned with the new branding assets.
 ## v1.0.0 - 2026-03-01
 
 - 首次开源发布。
